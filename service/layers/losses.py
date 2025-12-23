@@ -6,7 +6,7 @@ Includes CIoU loss for bounding box regression and focal loss for classification
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Tuple
+from typing import Tuple, Optional, List
 import math
 
 
@@ -222,3 +222,109 @@ class DensityLoss(nn.Module):
             gt_density: Ground truth density map (B, 1, H, W)
         """
         return self.mse(pred_density, gt_density)
+
+
+class DistillationLoss(nn.Module):
+    """
+    Knowledge Distillation Loss for training student models.
+    Based on: https://arxiv.org/abs/2307.07483 (Multimodal Distillation)
+    
+    Combines:
+    - Soft targets (KL divergence with temperature)
+    - Hard targets (standard task loss)
+    """
+    
+    def __init__(self, temperature: float = 4.0, alpha: float = 0.7):
+        """
+        Args:
+            temperature: Softmax temperature for soft targets (higher = softer)
+            alpha: Weight for distillation loss (1-alpha for hard target loss)
+        """
+        super().__init__()
+        self.temperature = temperature
+        self.alpha = alpha
+    
+    def forward(self, student_logits: torch.Tensor, teacher_logits: torch.Tensor,
+                hard_targets: Optional[torch.Tensor] = None,
+                hard_loss_fn: Optional[nn.Module] = None) -> Tuple[torch.Tensor, dict]:
+        """
+        Args:
+            student_logits: Student model output (B, C, ...)
+            teacher_logits: Teacher model output (B, C, ...) - detached
+            hard_targets: Optional ground truth labels
+            hard_loss_fn: Optional loss function for hard targets
+        
+        Returns:
+            total_loss, loss_dict
+        """
+        T = self.temperature
+        
+        # Flatten spatial dimensions if needed
+        if student_logits.dim() > 2:
+            student_flat = student_logits.view(student_logits.size(0), student_logits.size(1), -1)
+            teacher_flat = teacher_logits.view(teacher_logits.size(0), teacher_logits.size(1), -1)
+        else:
+            student_flat = student_logits
+            teacher_flat = teacher_logits
+        
+        # Soft targets: KL divergence with temperature
+        soft_student = F.log_softmax(student_flat / T, dim=1)
+        soft_teacher = F.softmax(teacher_flat.detach() / T, dim=1)
+        
+        distill_loss = F.kl_div(
+            soft_student, soft_teacher, 
+            reduction='batchmean'
+        ) * (T ** 2)  # Scale by T^2 as per Hinton et al.
+        
+        # Optional hard targets
+        if hard_targets is not None and hard_loss_fn is not None:
+            hard_loss = hard_loss_fn(student_logits, hard_targets)
+            total_loss = self.alpha * distill_loss + (1 - self.alpha) * hard_loss
+            return total_loss, {
+                'distill_loss': distill_loss.item(),
+                'hard_loss': hard_loss.item(),
+                'total': total_loss.item(),
+            }
+        
+        return distill_loss, {
+            'distill_loss': distill_loss.item(),
+            'total': distill_loss.item(),
+        }
+
+
+class FeatureDistillationLoss(nn.Module):
+    """
+    Feature-level distillation for intermediate representations.
+    Useful for transferring spatial knowledge from teacher to student.
+    """
+    
+    def __init__(self, student_channels: List[int], teacher_channels: List[int]):
+        """
+        Args:
+            student_channels: Channel dims for student features [P3, P4, P5]
+            teacher_channels: Channel dims for teacher features [P3, P4, P5]
+        """
+        super().__init__()
+        # Projection layers to align student features to teacher
+        self.projections = nn.ModuleList([
+            nn.Conv2d(s_ch, t_ch, 1) if s_ch != t_ch else nn.Identity()
+            for s_ch, t_ch in zip(student_channels, teacher_channels)
+        ])
+    
+    def forward(self, student_features: List[torch.Tensor], 
+                teacher_features: List[torch.Tensor]) -> torch.Tensor:
+        """
+        Args:
+            student_features: List of student feature maps [P3, P4, P5]
+            teacher_features: List of teacher feature maps [P3, P4, P5]
+        """
+        total_loss = 0.0
+        for proj, s_feat, t_feat in zip(self.projections, student_features, teacher_features):
+            # Project student to teacher dimension
+            s_projected = proj(s_feat)
+            # L2 loss on normalized features
+            s_norm = F.normalize(s_projected, dim=1)
+            t_norm = F.normalize(t_feat.detach(), dim=1)
+            total_loss += F.mse_loss(s_norm, t_norm)
+        
+        return total_loss / len(self.projections)

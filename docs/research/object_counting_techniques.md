@@ -73,3 +73,22 @@ This document surveys recent advancements in object counting, focusing on techni
 - [CrowdVLM-R1](https://arxiv.org/abs/2504.03724)
 - [VA-Count](https://arxiv.org/abs/2407.04948)
 - [AMDCN](https://arxiv.org/abs/1804.07821)
+
+---
+
+## Additional Papers
+
+### 4. Learning To Count Everything
+**arXiv:2104.08391**
+
+Few-shot counting for any object category.
+
+| Feature | Description |
+|---------|-------------|
+| Approach | Few-shot regression → density map |
+| Input | Query image + few exemplars |
+| Adaptation | Novel categories at test time |
+| Dataset | 147 categories, 6000+ images |
+| [Code](https://github.com/cvlab-stonybrook/LearningToCountEverything) |
+
+**Relevance:** Count any object type on Meta glasses with minimal training.
