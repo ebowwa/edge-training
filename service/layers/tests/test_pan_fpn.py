@@ -141,5 +141,101 @@ class TestEndToEnd(unittest.TestCase):
         self.assertEqual(output.shape[2], 40*40 + 20*20 + 10*10)
 
 
+class TestBackbone(unittest.TestCase):
+    """Tests for ResNet backbones."""
+    
+    def test_resnet18_shapes(self):
+        """Verify ResNet-18 output shapes."""
+        from backbone import ResNetBackbone
+        model = ResNetBackbone('resnet18', pretrained=False)
+        x = torch.randn(1, 3, 224, 224)
+        
+        features = model(x)
+        
+        # P3: 224 / 8 = 28
+        # P4: 224 / 16 = 14
+        # P5: 224 / 32 = 7
+        self.assertEqual(features[0].shape[2:], (28, 28))
+        self.assertEqual(features[1].shape[2:], (14, 14))
+        self.assertEqual(features[2].shape[2:], (7, 7))
+        
+        # Channels: 128, 256, 512
+        self.assertEqual(features[0].shape[1], 128)
+        self.assertEqual(features[1].shape[1], 256)
+        self.assertEqual(features[2].shape[1], 512)
+
+    def test_resnet34_integration(self):
+        """Verify ResNet-34 integration with PAN-FPN."""
+        from backbone import ResNetBackbone
+        backbone = ResNetBackbone('resnet34', pretrained=False)
+        neck = PANFPN(*backbone.out_channels)
+        
+        x = torch.randn(1, 3, 640, 640)
+        features = backbone(x)
+        fused = neck(*features)
+        
+        self.assertEqual(fused[0].shape[2:], (80, 80))
+        self.assertEqual(fused[1].shape[2:], (40, 40))
+        self.assertEqual(fused[2].shape[2:], (20, 20))
+
+
+class TestDilatedConv(unittest.TestCase):
+    """Tests for DilatedConv and MultiDilatedBlock."""
+    
+    def test_dilated_conv_shapes(self):
+        """Verify dilated conv maintains spatial resolution."""
+        from common import DilatedConv
+        model = DilatedConv(128, 64, k=3, dilation=2)
+        x = torch.randn(1, 128, 40, 40)
+        y = model(x)
+        
+        self.assertEqual(y.shape, (1, 64, 40, 40), "Dilated conv should maintain spatial dims")
+    
+    def test_multi_dilated_block(self):
+        """Verify multi-dilation block aggregates scales correctly."""
+        from common import MultiDilatedBlock
+        model = MultiDilatedBlock(256, 256, dilations=[1, 2, 4, 8])
+        x = torch.randn(1, 256, 20, 20)
+        y = model(x)
+        
+        self.assertEqual(y.shape, (1, 256, 20, 20), "Multi-dilated block should maintain dims")
+
+
+class TestDensityHead(unittest.TestCase):
+    """Tests for DensityHead object counting."""
+    
+    def test_density_head_output(self):
+        """Verify density maps have correct shape."""
+        from head import DensityHead
+        head = DensityHead(ch=(128, 256, 512))
+        
+        x = [
+            torch.randn(1, 128, 80, 80),
+            torch.randn(1, 256, 40, 40),
+            torch.randn(1, 512, 20, 20),
+        ]
+        
+        density_maps = head(x)
+        
+        self.assertEqual(len(density_maps), 3)
+        self.assertEqual(density_maps[0].shape, (1, 1, 80, 80))
+        self.assertEqual(density_maps[1].shape, (1, 1, 40, 40))
+        self.assertEqual(density_maps[2].shape, (1, 1, 20, 20))
+    
+    def test_density_count(self):
+        """Verify count method returns scalar per batch."""
+        from head import DensityHead
+        head = DensityHead(ch=(128, 256, 512))
+        
+        x = [
+            torch.randn(2, 128, 40, 40),
+            torch.randn(2, 256, 20, 20),
+            torch.randn(2, 512, 10, 10),
+        ]
+        
+        counts = head.count(x)
+        self.assertEqual(counts.shape, (2,), "Count should return one value per batch")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

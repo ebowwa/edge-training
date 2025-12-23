@@ -11,33 +11,27 @@ service/preprocessing/
     ├── __init__.py
     └── test_preprocessing.py
 """
-
-import sys
-import os
 import tempfile
 import shutil
 from pathlib import Path
-
 import numpy as np
 import cv2
 
-# Add parent to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from cleaners import (
+from service.preprocessing.cleaners import (
     CorruptedImageCleaner,
     AnnotationValidator,
     BBoxValidator,
     CleanResult,
 )
-from transforms import (
+from service.preprocessing.transforms import (
     FlipTransform,
     RotateTransform,
     ColorTransform,
     NoiseTransform,
 )
-from pipeline import PreprocessingPipeline, PreprocessingResult
-from config import CleaningConfig, AugmentationConfig
+from service.preprocessing.pipeline import PreprocessingPipeline, PreprocessingResult
+from service.preprocessing.config import CleaningConfig, AugmentationConfig
 
 
 class TestFixtures:

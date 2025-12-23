@@ -8,11 +8,7 @@ import pytest
 import sys
 from pathlib import Path
 
-# Add api directory to path
-api_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(api_dir))
-
-from schemas import (
+from api.schemas import (
     DatasetRequest, DatasetResponse,
     TrainingRequest, TrainingResponse,
     InferenceRequest, InferenceResponse, DetectionResult,

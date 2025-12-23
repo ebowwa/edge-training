@@ -16,20 +16,10 @@ service/
     └── test_services.py
 """
 
-import sys
-import os
-
-# Add com.service to path (directory has dot in name, not a subpackage)
-service_path = os.path.dirname(os.path.dirname(__file__))  # Go up from tests/ to com.service/
-sys.path.insert(0, service_path)
-print("=" * 60)
-print("Testing service imports...")
-print("=" * 60)
-
 # Test 1: Import all config classes
 print("\n[1/5] Testing config imports...")
 try:
-    from config import (
+    from service.config import (
         DatasetConfig,
         TrainingConfig,
         InferenceConfig,
@@ -49,11 +39,11 @@ except Exception as e:
 # Test 2: Import all service classes
 print("\n[2/5] Testing service imports...")
 try:
-    from dataset_service import DatasetService
-    from training_service import TrainingService
-    from inference_service import InferenceService
-    from validation_service import ValidationService
-    from export_service import ExportService
+    from service.dataset_service import DatasetService
+    from service.training_service import TrainingService
+    from service.inference_service import InferenceService
+    from service.validation_service import ValidationService
+    from service.export_service import ExportService
     print("  ✓ All service classes imported successfully")
 except Exception as e:
     print(f"  ✗ Failed: {e}")

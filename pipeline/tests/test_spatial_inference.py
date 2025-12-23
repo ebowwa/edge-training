@@ -8,23 +8,13 @@ from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 import numpy as np
 
-# Add paths
-_test_dir = Path(__file__).parent
-_pipeline_dir = _test_dir.parent
-_root_dir = _pipeline_dir.parent
-_service_dir = _root_dir / "service"
-_slam_dir = _service_dir / "slam"
-
-sys.path.insert(0, str(_pipeline_dir))
-sys.path.insert(0, str(_service_dir))
-sys.path.insert(0, str(_slam_dir))
-
-from spatial_inference import (
+from pipeline.spatial_inference import (
     SpatialDetection,
-    SpatialInferenceResult,
     SpatialInferencePipeline,
+    SpatialInferenceResult,
+    InferenceStage,
 )
-from slam_service import DevicePose, SpatialAnchor
+from service.slam import DevicePose, SpatialAnchor
 
 
 class TestSpatialDetection(unittest.TestCase):
@@ -89,7 +79,7 @@ class TestSpatialInferencePipelineMocked(unittest.TestCase):
     
     def test_init_with_slam(self):
         """Test initialization with SLAM enabled."""
-        with patch('spatial_inference.InferenceService'):
+        with patch('pipeline.spatial_inference.InferenceService'):
             pipeline = SpatialInferencePipeline(
                 model_path="test.pt",
                 enable_slam=True,
@@ -101,7 +91,7 @@ class TestSpatialInferencePipelineMocked(unittest.TestCase):
     
     def test_init_without_slam(self):
         """Test initialization with SLAM disabled."""
-        with patch('spatial_inference.InferenceService'):
+        with patch('pipeline.spatial_inference.InferenceService'):
             pipeline = SpatialInferencePipeline(
                 model_path="test.pt",
                 enable_slam=False,
@@ -112,7 +102,7 @@ class TestSpatialInferencePipelineMocked(unittest.TestCase):
     
     def test_reset(self):
         """Test pipeline reset."""
-        with patch('spatial_inference.InferenceService'):
+        with patch('pipeline.spatial_inference.InferenceService'):
             pipeline = SpatialInferencePipeline(
                 model_path="test.pt",
                 enable_slam=True,
@@ -127,7 +117,7 @@ class TestSpatialInferencePipelineMocked(unittest.TestCase):
     
     def test_get_spatial_map_with_slam(self):
         """Test getting spatial map with SLAM enabled."""
-        with patch('spatial_inference.InferenceService'):
+        with patch('pipeline.spatial_inference.InferenceService'):
             pipeline = SpatialInferencePipeline(
                 model_path="test.pt",
                 enable_slam=True,
@@ -139,7 +129,7 @@ class TestSpatialInferencePipelineMocked(unittest.TestCase):
     
     def test_get_spatial_map_without_slam(self):
         """Test getting spatial map with SLAM disabled."""
-        with patch('spatial_inference.InferenceService'):
+        with patch('pipeline.spatial_inference.InferenceService'):
             pipeline = SpatialInferencePipeline(
                 model_path="test.pt",
                 enable_slam=False,
@@ -152,7 +142,7 @@ class TestSpatialInferencePipelineMocked(unittest.TestCase):
 class TestSpatialInferencePipelineIntegration(unittest.TestCase):
     """Integration tests (require mocked inference service)."""
     
-    @patch('spatial_inference.InferenceService')
+    @patch('pipeline.spatial_inference.InferenceService')
     def test_process_frame_returns_result(self, MockInferenceService):
         """Test that process_frame returns a SpatialInferenceResult."""
         # Setup mock
@@ -175,7 +165,7 @@ class TestSpatialInferencePipelineIntegration(unittest.TestCase):
         self.assertEqual(result.frame_id, 1)
         self.assertEqual(result.image_size, (640, 480))
     
-    @patch('spatial_inference.InferenceService')
+    @patch('pipeline.spatial_inference.InferenceService')
     def test_process_frame_with_detections(self, MockInferenceService):
         """Test process_frame with mock detections."""
         # Setup mock detection
@@ -205,7 +195,7 @@ class TestSpatialInferencePipelineIntegration(unittest.TestCase):
         self.assertEqual(result.detections[0].class_name, "pothole")
         self.assertIsNotNone(result.detections[0].anchor_id)
     
-    @patch('spatial_inference.InferenceService')
+    @patch('pipeline.spatial_inference.InferenceService')
     def test_frame_count_increments(self, MockInferenceService):
         """Test that frame count increments."""
         mock_service = MagicMock()

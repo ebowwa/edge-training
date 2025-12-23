@@ -9,8 +9,8 @@ Example:
     app.include_router(router)
 """
 
-from routes import router
-from schemas import (
+from .routes import router
+from .schemas import (
     DatasetRequest,
     TrainingRequest,
     InferenceRequest,

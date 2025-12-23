@@ -10,44 +10,23 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock, AsyncMock
 from io import BytesIO
 
-# Add api and service directories to path
-api_dir = Path(__file__).parent.parent
-root_dir = api_dir.parent
-service_dir = root_dir / "service"
-preprocessing_dir = service_dir / "preprocessing"
-
-sys.path.insert(0, str(api_dir))
-sys.path.insert(0, str(service_dir))
-sys.path.insert(0, str(preprocessing_dir))
+# Import routes after mocking
+from api.routes import router
 
 
 @pytest.fixture
 def mock_services():
-    """Mock all service modules before importing routes."""
-    # Create mock modules
-    mock_config = MagicMock()
-    mock_dataset = MagicMock()
-    mock_training = MagicMock()
-    mock_inference = MagicMock()
-    mock_validation = MagicMock()
-    mock_export = MagicMock()
-    mock_pipeline = MagicMock()
-    mock_cleaners = MagicMock()
-    mock_transforms = MagicMock()
-    
-    with patch.dict(sys.modules, {
-        'config': mock_config,
-        'service_config': mock_config,
-        'dataset_service': mock_dataset,
-        'training_service': mock_training,
-        'inference_service': mock_inference,
-        'validation_service': mock_validation,
-        'export_service': mock_export,
-        'pipeline': mock_pipeline,
-        'preprocessing_pipeline': mock_pipeline,
-        'cleaners': mock_cleaners,
-        'transforms': mock_transforms,
-    }):
+    """Mock all service modules inside api.routes."""
+    with patch('api.routes.service_config') as mock_config, \
+         patch('api.routes.dataset_service') as mock_dataset, \
+         patch('api.routes.training_service') as mock_training, \
+         patch('api.routes.inference_service') as mock_inference, \
+         patch('api.routes.validation_service') as mock_validation, \
+         patch('api.routes.export_service') as mock_export, \
+         patch('api.routes.preprocessing_pipeline') as mock_pipeline, \
+         patch('api.routes.cleaners') as mock_cleaners, \
+         patch('api.routes.transforms') as mock_transforms:
+        
         yield {
             'config': mock_config,
             'dataset_service': mock_dataset,
@@ -68,7 +47,7 @@ def client(mock_services):
     from fastapi.testclient import TestClient
     
     # Import routes after mocking
-    from routes import router
+    from api.routes import router
     
     app = FastAPI()
     app.include_router(router)

@@ -12,7 +12,7 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 
-from config import Detection, InferenceConfig, InferenceResult
+from .config import Detection, InferenceConfig, InferenceResult
 
 logging.basicConfig(
     level=logging.INFO,

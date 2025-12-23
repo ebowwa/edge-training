@@ -18,8 +18,8 @@ from typing import List, Optional, Callable, Dict, Any
 import cv2
 import albumentations as A
 
-from cleaners import BaseCleaner, CleanResult
-from transforms import BaseTransform
+from .cleaners import BaseCleaner, CleanResult
+from .transforms import BaseTransform
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 

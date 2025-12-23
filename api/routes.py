@@ -10,33 +10,18 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, UploadFile, HTTPException, BackgroundTasks
 
-# Resolve paths
-_api_dir = Path(__file__).parent
-_root_dir = _api_dir.parent
-_service_dir = _root_dir / "service"
-_preprocessing_dir = _service_dir / "preprocessing"
+# Service imports
+from service import config as service_config
+from service import dataset_service, training_service, inference_service, validation_service, export_service
 
-# Import service modules
-sys.path.insert(0, str(_service_dir))
-import config as service_config
-import dataset_service
-import training_service
-import inference_service
-import validation_service
-import export_service
+# Preprocessing imports
+from service.preprocessing import pipeline as preprocessing_pipeline
+from service.preprocessing import cleaners, transforms
 
-# Import preprocessing modules  
-sys.path.insert(0, str(_preprocessing_dir))
-import pipeline as preprocessing_pipeline
-import cleaners
-import transforms
+# SLAM imports
+from service.slam import SlamService, DevicePose, SpatialAnchor
 
-# Import SLAM module
-_slam_dir = _service_dir / "slam"
-sys.path.insert(0, str(_slam_dir))
-from slam_service import SlamService, DevicePose, SpatialAnchor
-
-from schemas import (
+from .schemas import (
     DatasetRequest, DatasetResponse,
     TrainingRequest, TrainingResponse,
     InferenceRequest, InferenceResponse, DetectionResult,

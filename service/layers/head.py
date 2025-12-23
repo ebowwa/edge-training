@@ -116,3 +116,45 @@ def make_anchors(feats, strides, grid_cell_offset=0.5):
         anchor_points.append(torch.stack((sx, sy), -1).view(-1, 2))
         stride_tensor.append(torch.full((h * w, 1), stride, dtype=dtype, device=device))
     return torch.cat(anchor_points), torch.cat(stride_tensor)
+
+
+class DensityHead(nn.Module):
+    """
+    Density Map Head for object counting.
+    Predicts a per-pixel density map whose integral equals the object count.
+    Inspired by AMDCN (arXiv:1804.07821).
+    """
+    def __init__(self, ch: List[int] = (128, 256, 512)):
+        """
+        Args:
+            ch: Input channels from neck features (P3, P4, P5).
+        """
+        super().__init__()
+        self.nl = len(ch)  # number of scales
+        
+        # Per-scale density predictors
+        self.density_heads = nn.ModuleList([
+            nn.Sequential(
+                Conv(c, c // 2, 3),
+                Conv(c // 2, c // 4, 3),
+                nn.Conv2d(c // 4, 1, 1),  # Single channel density map
+                nn.ReLU(),  # Density must be non-negative
+            ) for c in ch
+        ])
+
+    def forward(self, x: List[torch.Tensor]) -> List[torch.Tensor]:
+        """
+        Returns density maps for each scale.
+        To get total count: sum(dm.sum() for dm in density_maps)
+        """
+        return [head(feat) for head, feat in zip(self.density_heads, x)]
+
+    def count(self, x: List[torch.Tensor]) -> torch.Tensor:
+        """
+        Returns the predicted count by integrating density maps.
+        """
+        density_maps = self.forward(x)
+        # Sum over spatial dimensions (each dm is (bs, 1, h, w))
+        # Squeeze channel dim and average across scales
+        counts = [dm.sum(dim=(2, 3)).squeeze(-1) for dm in density_maps]
+        return torch.stack(counts, dim=-1).mean(dim=-1)

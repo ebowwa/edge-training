@@ -12,25 +12,13 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 
-# Add service path for imports
-_pipeline_dir = Path(__file__).parent
-_root_dir = _pipeline_dir.parent
-_service_dir = _root_dir / "service"
-_slam_dir = _service_dir / "slam"
-sys.path.insert(0, str(_pipeline_dir))
-sys.path.insert(0, str(_service_dir))
-sys.path.insert(0, str(_slam_dir))
+# Handle imports from project root
+from .base import Pipeline, PipelineStage, PipelineContext, FunctionStage
 
-# Handle both relative and absolute imports
-try:
-    from .base import Pipeline, PipelineStage, PipelineContext, FunctionStage
-except ImportError:
-    from base import Pipeline, PipelineStage, PipelineContext, FunctionStage
-
-# Import services
-from inference_service import InferenceService
-from config import InferenceConfig, Detection
-from slam_service import SlamService, DevicePose, SpatialAnchor
+# Import services from project root
+from service.inference_service import InferenceService
+from service.config import InferenceConfig, Detection
+from service.slam import SlamService, DevicePose, SpatialAnchor
 
 
 @dataclass

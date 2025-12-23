@@ -8,7 +8,7 @@ import os
 
 from ultralytics import YOLO
 
-from config import ExportConfig
+from .config import ExportConfig
 
 logging.basicConfig(
     level=logging.INFO,

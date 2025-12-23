@@ -94,7 +94,7 @@ from typing import Optional, Tuple
 import cv2
 import numpy as np
 
-from cleaners import BaseCleaner, CleanResult
+from .cleaners import BaseCleaner, CleanResult
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 

@@ -6,12 +6,7 @@ import sys
 import unittest
 from pathlib import Path
 
-# Add paths
-_test_dir = Path(__file__).parent
-_pipeline_dir = _test_dir.parent
-sys.path.insert(0, str(_pipeline_dir))
-
-from base import (
+from pipeline.base import (
     PipelineContext,
     PipelineStage,
     FunctionStage,

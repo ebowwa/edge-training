@@ -78,3 +78,45 @@ class SPPF(nn.Module):
         y1 = self.m(x)
         y2 = self.m(y1)
         return self.cv2(torch.cat((x, y1, y2, self.m(y2)), 1))
+
+
+class DilatedConv(nn.Module):
+    """
+    Dilated Convolution block for multiscale feature extraction.
+    Inspired by AMDCN (arXiv:1804.07821) for perspective-free counting.
+    """
+    def __init__(self, c1: int, c2: int, k: int = 3, dilation: int = 2, act: bool = True):
+        """
+        Args:
+            c1: Input channels.
+            c2: Output channels.
+            k: Kernel size.
+            dilation: Dilation rate (expands receptive field without increasing params).
+            act: Whether to apply activation.
+        """
+        super().__init__()
+        padding = (k + (k - 1) * (dilation - 1)) // 2  # 'same' padding for dilated conv
+        self.conv = nn.Conv2d(c1, c2, k, stride=1, padding=padding, dilation=dilation, bias=False)
+        self.bn = nn.BatchNorm2d(c2)
+        self.act = nn.SiLU() if act else nn.Identity()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.act(self.bn(self.conv(x)))
+
+
+class MultiDilatedBlock(nn.Module):
+    """
+    Aggregated multi-scale dilated convolution block.
+    Combines features from multiple dilation rates for perspective-free counting.
+    """
+    def __init__(self, c1: int, c2: int, dilations: List[int] = [1, 2, 4, 8]):
+        super().__init__()
+        c_ = c2 // len(dilations)  # channels per branch
+        self.branches = nn.ModuleList([
+            DilatedConv(c1, c_, k=3, dilation=d) for d in dilations
+        ])
+        self.fuse = Conv(c_ * len(dilations), c2, 1)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        features = [branch(x) for branch in self.branches]
+        return self.fuse(torch.cat(features, dim=1))

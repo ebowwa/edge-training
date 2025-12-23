@@ -30,7 +30,7 @@ Example usage:
 __version__ = "0.1.0"
 
 # Configuration dataclasses
-from config import (
+from .config import (
     DatasetConfig,
     Detection,
     ExportConfig,
@@ -44,12 +44,12 @@ from config import (
 )
 
 # Service classes
-from dataset_service import DatasetService
-from export_service import ExportService
-from inference_service import InferenceService
-from training_service import TrainingService
-from validation_service import ValidationService
-from slam import SlamService, DevicePose, SpatialAnchor
+from .dataset_service import DatasetService
+from .export_service import ExportService
+from .inference_service import InferenceService
+from .training_service import TrainingService
+from .validation_service import ValidationService
+from .slam import SlamService, DevicePose, SpatialAnchor
 
 __all__ = [
     # Version
