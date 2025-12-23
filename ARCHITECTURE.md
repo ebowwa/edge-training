@@ -31,7 +31,7 @@ Pure business logic. No HTTP, no networking.
 | `ValidationService` | Model validation and benchmarking |
 | `ExportService` | Export to NCNN, ONNX, CoreML, TFLite |
 
-### com.api (⏳ Next)
+### com.api (✅ Complete)
 
 HTTP endpoints that call services. Planned routes:
 
@@ -45,7 +45,7 @@ POST /export               → ExportService.export()
 GET  /models/{name}/status → Check training progress
 ```
 
-### com.server (⏳ Later)
+### com.server (✅ Bootstrap Ready)
 
 Application bootstrap:
 
@@ -64,5 +64,5 @@ Application bootstrap:
 ## Build Order
 
 1. ✅ `com.service` - Core logic
-2. ⏳ `com.api` - Define exposed operations
-3. ⏳ `com.server` - Bootstrap and run
+2. ✅ `com.api` - Define exposed operations
+3. ✅ `com.server` - Bootstrap and run
