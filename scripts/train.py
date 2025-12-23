@@ -2,6 +2,8 @@
 """
 Training script for custom detection architecture.
 Trains ResNet backbone + PAN-FPN neck + Detect head.
+
+Now integrates with the callbacks system for TensorBoard, W&B, and early stopping.
 """
 
 import argparse
@@ -21,11 +23,22 @@ try:
     from service.layers.neck import PANFPN
     from service.layers.head import Detect, DensityHead
     from service.layers.losses import CIoULoss, BCEWithLogitsFocalLoss, DensityLoss
+    from service.callbacks import (
+        CallbackManager,
+        TensorBoardCallback,
+        WandBCallback,
+        EarlyStoppingCallback,
+        MetricsLoggerCallback,
+        create_default_callbacks,
+    )
 except ImportError:
     from layers.backbone import ResNetBackbone
     from layers.neck import PANFPN
     from layers.head import Detect, DensityHead
     from layers.losses import CIoULoss, BCEWithLogitsFocalLoss, DensityLoss
+    # Callbacks not available in fallback mode
+    CallbackManager = None
+    create_default_callbacks = None
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -279,7 +292,7 @@ def train_epoch(model: nn.Module, dataloader: DataLoader,
 
 
 def train(args):
-    """Main training loop."""
+    """Main training loop with callbacks support."""
     device = torch.device(args.device if torch.cuda.is_available() else 'cpu')
     logger.info(f"Training on device: {device}")
     
@@ -318,21 +331,41 @@ def train(args):
     box_loss = CIoULoss()
     cls_loss = BCEWithLogitsFocalLoss()
     
+    # Setup callbacks
+    output_dir = Path(args.project) / args.name
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    callbacks = None
+    if create_default_callbacks is not None:
+        callbacks = create_default_callbacks(
+            output_dir=str(output_dir),
+            tensorboard=args.tensorboard,
+            wandb_project=args.wandb_project if hasattr(args, 'wandb_project') else None,
+            early_stopping=args.early_stopping if hasattr(args, 'early_stopping') else False,
+            early_stopping_patience=args.patience if hasattr(args, 'patience') else 10,
+        )
+        callbacks.on_train_start({"epochs": args.epochs, "nc": args.nc})
+    
     # Training loop
     best_loss = float('inf')
     for epoch in range(args.epochs):
         logger.info(f"\nEpoch {epoch + 1}/{args.epochs}")
         
         metrics = train_epoch(model, dataloader, optimizer, device, box_loss, cls_loss)
+        metrics['epoch'] = epoch + 1
+        metrics['lr'] = scheduler.get_last_lr()[0]
         scheduler.step()
         
         logger.info(f"Epoch {epoch + 1} metrics: {metrics}")
         
+        # Call callbacks
+        if callbacks:
+            callbacks.on_epoch_end(metrics)
+        
         # Save checkpoint
         if metrics['train_loss'] < best_loss:
             best_loss = metrics['train_loss']
-            checkpoint_path = Path(args.project) / args.name / 'best.pt'
-            checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+            checkpoint_path = output_dir / 'best.pt'
             torch.save({
                 'epoch': epoch,
                 'model_state_dict': model.state_dict(),
@@ -340,6 +373,10 @@ def train(args):
                 'loss': best_loss,
             }, checkpoint_path)
             logger.info(f"Saved best model to {checkpoint_path}")
+    
+    # Finalize callbacks
+    if callbacks:
+        callbacks.on_train_end({"best_loss": best_loss, "epochs": args.epochs})
     
     logger.info("Training complete!")
     return model
@@ -373,6 +410,12 @@ def main():
     # Output
     parser.add_argument('--project', type=str, default='runs/train', help='Project dir')
     parser.add_argument('--name', type=str, default='exp', help='Experiment name')
+    
+    # Callbacks
+    parser.add_argument('--tensorboard', action='store_true', help='Enable TensorBoard logging')
+    parser.add_argument('--wandb-project', type=str, default=None, help='W&B project name')
+    parser.add_argument('--early-stopping', action='store_true', help='Enable early stopping')
+    parser.add_argument('--patience', type=int, default=10, help='Early stopping patience')
     
     args = parser.parse_args()
     train(args)

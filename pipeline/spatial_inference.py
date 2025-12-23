@@ -1,15 +1,20 @@
 """
 Spatial Inference Pipeline.
 
-Chains YOLO inference with SLAM for real-time spatial detection.
+Chains YOLO/RF-DETR inference with SLAM for real-time spatial detection.
 Designed for egocentric video from wearables (glasses, phones).
+
+Supports:
+- Multiple backends: YOLO (via Ultralytics) and RF-DETR (transformers)
+- Inference optimization via JIT tracing
+- ModelRegistry for centralized model management
 """
 
 import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 
 # Handle imports from project root
@@ -17,8 +22,10 @@ from .base import Pipeline, PipelineStage, PipelineContext, FunctionStage
 
 # Import services from project root
 from service.inference_service import InferenceService
-from service.config import InferenceConfig, Detection
+from service.config import InferenceConfig, Detection, ModelRegistry
 from service.slam import SlamService, DevicePose, SpatialAnchor
+from service.optimization import InferenceOptimizer
+from service.rfdetr_service import RFDETRService, RFDETRDetection, RFDETR_AVAILABLE
 
 
 @dataclass
@@ -195,13 +202,25 @@ class SpatialInferencePipeline:
         enable_slam: bool = True,
         imu_enabled: bool = False,
         conf_threshold: float = 0.5,
+        optimize: bool = False,
+        backend: Optional[str] = None,  # "yolo" or "rfdetr", auto-detected if None
     ):
-        self.model_path = model_path
+        # Use ModelRegistry to resolve path and detect backend
+        self.model_path = ModelRegistry.get_path(model_path) if not model_path.startswith("rfdetr-") else model_path
         self.enable_slam = enable_slam
+        self.optimize = optimize
+        
+        # Auto-detect backend if not specified
+        if backend is None:
+            self.backend = ModelRegistry.get_backend(model_path)
+        else:
+            self.backend = backend
         
         # Initialize services
         self.inference_config = InferenceConfig(conf_threshold=conf_threshold)
         self._inference_service: Optional[InferenceService] = None
+        self._rfdetr_service: Optional[RFDETRService] = None
+        self._optimizer: Optional[InferenceOptimizer] = None
         
         if enable_slam:
             self.slam_service = SlamService({"imu_enabled": imu_enabled})
@@ -210,10 +229,24 @@ class SpatialInferencePipeline:
         
         self._frame_count = 0
     
-    def _get_inference_service(self) -> InferenceService:
-        if self._inference_service is None:
-            self._inference_service = InferenceService(self.model_path)
-        return self._inference_service
+    def _get_inference_service(self) -> Union[InferenceService, RFDETRService]:
+        """Get the appropriate inference service based on backend."""
+        if self.backend == "rfdetr":
+            if self._rfdetr_service is None:
+                if not RFDETR_AVAILABLE:
+                    raise ImportError("RF-DETR not installed. Install with: pip install rfdetr")
+                self._rfdetr_service = RFDETRService(self.model_path, optimize=self.optimize)
+            return self._rfdetr_service
+        else:
+            # YOLO backend
+            if self.optimize and self._optimizer is not None:
+                return self._optimizer
+            if self._inference_service is None:
+                self._inference_service = InferenceService(self.model_path)
+                if self.optimize:
+                    self._optimizer = InferenceOptimizer(self.model_path)
+                    self._optimizer.optimize()
+            return self._inference_service
     
     def process_frame(
         self,
