@@ -33,12 +33,14 @@ Train models that understand 3D object permanence.
   - **Re-Identification**: Uses `find_anchor_by_bbox` to link new observations to existing 3D memories.
   - **Result**: Stable, flicker-free tracking on wearable devices (glasses).
 
-## 4. Few-Shot Personal Object Learning
+## 4. Few-Shot Personal Object Learning *(TODO)*
 Train custom models with extremely limited data (5-10 images).
+
+> **Note:** This feature has stub code but is not yet integrated into TrainingConfig.
 
 - **Use Case**: Personalized object detection ("My specific blue mug").
 - **Example**: Teaching the glasses to recognize your specific medication bottle.
-- **How it works**:
+- **How it works** *(planned)*:
   - **PEFT (Parameter-Efficient Fine-Tuning)**: Uses **LoRA** (Low-Rank Adaptation) or **BitFit**.
   - **Efficiency**: Freezes 99% of the massive YOLO backbone and only trains a tiny adapter layer.
   - **Result**: Train a custom model in minutes on a consumer GPU without "catastrophic forgetting" of general knowledge.
@@ -72,17 +74,22 @@ for det in results.detections:
     print(f"Gaze Priority: {det.gaze_boost}")  # Attention weight
 ```
 
-### Train with PEFT (Low Memory)
+### Train with PEFT (Low Memory) *(TODO - Not Yet Implemented)*
 ```python
-from service.training_service import TrainingService, TrainingConfig
+# TODO: Add use_peft and peft_method to TrainingConfig
+# from service.training_service import TrainingService, TrainingConfig
+#
+# config = TrainingConfig(
+#     use_peft=True,
+#     peft_method="lora",  # or "bitfit"
+#     epochs=50
+# )
+# TrainingService.train("my_dataset.yaml", config)
 
-# Enable LoRA for memory-efficient training
-config = TrainingConfig(
-    use_peft=True,
-    peft_method="lora",  # or "bitfit"
-    epochs=50
-)
-TrainingService.train("my_dataset.yaml", config)
+# For now, use the stub functions directly:
+from service.layers.peft import freeze_base_model, get_trainable_params
+freeze_base_model(model)  # This works
+print(f"Trainable params: {get_trainable_params(model)}")  # This works
 ```
 
 ### Interactive Counting with User Feedback

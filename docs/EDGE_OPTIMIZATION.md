@@ -6,12 +6,12 @@ This guide documents the edge optimization techniques integrated into the edge-t
 
 The edge-training platform now includes advanced optimization modules for deploying efficient models on edge devices (glasses, phones, IoT):
 
-| Module | Technique | arXiv Paper | Use Case |
-|--------|-----------|-------------|----------|
-| `pruning` | Attention Head Pruning | [2201.08071](https://arxiv.org/abs/2201.08071) | Compress transformer models |
-| `depthwise_separable` | MobileNet Convolutions | [1704.04861](https://arxiv.org/abs/1704.04861) | Efficient convolutions |
-| `ofa` | Once-for-All Networks | [1908.09791](https://arxiv.org/abs/1908.09791) | Hardware-aware deployment |
-| `distillation` | Patient Knowledge Distillation | [2012.06785](https://arxiv.org/abs/2012.06785) | Model compression |
+| Module | Technique | arXiv Paper | Status |
+|--------|-----------|-------------|--------|
+| `depthwise_separable` | MobileNet Convolutions | [1704.04861](https://arxiv.org/abs/1704.04861) | ✅ Implemented |
+| `pruning` | Attention Head Pruning | [2201.08071](https://arxiv.org/abs/2201.08071) | ⚠️ TODO |
+| `ofa` | Once-for-All Networks | [1908.09791](https://arxiv.org/abs/1908.09791) | ⚠️ TODO |
+| `distillation` | Patient Knowledge Distillation | [2012.06785](https://arxiv.org/abs/2012.06785) | ⚠️ TODO |
 
 Additional relevant research:
 - **RT-DETR** ([2304.08069](https://arxiv.org/abs/2304.08069)) - Already integrated in `rfdetr_service.py`
@@ -19,7 +19,11 @@ Additional relevant research:
 
 ---
 
-## Attention Head Pruning
+<!-- 
+## Attention Head Pruning [NOT IMPLEMENTED]
+
+TODO: The following section documents a planned feature. The pruning.py module
+has not been created yet. Uncomment when implemented.
 
 > Based on "Layer-wise Pruning of Transformer Attention Heads for Efficient Language Modeling" (arXiv:2201.08071)
 
@@ -63,6 +67,7 @@ print(pruner.get_stats())
 | `PrunedMultiHeadAttention` | Drop-in MHA replacement with pruning support |
 | `HeadImportanceScorer` | Compute importance scores from gradients/activations |
 | `AttentionHeadPruner` | Orchestrate pruning across model layers |
+-->
 
 ---
 
@@ -125,7 +130,11 @@ new_channels = apply_width_multiplier(channels=64, multiplier=0.75)
 
 ---
 
-## Once-for-All (OFA) Networks
+<!-- 
+## Once-for-All (OFA) Networks [NOT IMPLEMENTED]
+
+TODO: The following section documents a planned feature. The ofa.py module
+has not been created yet. Uncomment when implemented.
 
 > Based on "Once-for-All: Train One Network and Specialize it for Efficient Deployment" (arXiv:1908.09791)
 
@@ -188,10 +197,15 @@ for phase in schedule:
     print(f"  Sample depth: {phase['sample_depth']}")
     print(f"  Sample width: {phase['sample_width']}")
 ```
+-->
 
 ---
 
-## Patient Knowledge Distillation
+<!-- 
+## Patient Knowledge Distillation [NOT IMPLEMENTED]
+
+TODO: The following section documents a planned feature. The distillation.py module
+has not been created yet. Uncomment when implemented.
 
 > Based on "Patient Knowledge Distillation for BERT Model Compression" (arXiv:2012.06785)
 
@@ -244,6 +258,7 @@ for batch in dataloader:
 |---------|-------------|----------------------|
 | PKD-Last | Student matches last K teacher layers | Student [1-6] ↔ Teacher [7-12] |
 | PKD-Skip | Student matches every K-th teacher layer | Student [1-6] ↔ Teacher [2,4,6,8,10,12] |
+-->
 
 ---
 
@@ -253,15 +268,14 @@ for batch in dataloader:
 
 ```python
 from service.export_service import ExportService
-from service.layers import apply_head_pruning, replace_conv_with_depthwise_separable
+from service.layers.depthwise_separable import replace_conv_with_depthwise_separable
 
-# 1. Prune attention heads
-pruned = apply_head_pruning(model, sparsity=0.3)
+# 1. Replace standard convolutions with efficient depthwise separable
+# (Gives ~8x computational savings)
+replaced = replace_conv_with_depthwise_separable(model, min_channels=32)
+print(f"Replaced {replaced} convolutions")
 
-# 2. Replace convolutions
-replaced = replace_conv_with_depthwise_separable(model)
-
-# 3. Export to edge format
+# 2. Export to edge format
 ExportService.export_ncnn(model_path)
 ExportService.export_coreml(model_path, half=True)
 ExportService.export_tflite(model_path)

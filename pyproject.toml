@@ -1,0 +1,55 @@
+[project]
+name = "edge-training"
+version = "0.1.0"
+description = "Edge-optimized ML training pipeline for YOLO and RF-DETR models"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # Core ML
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+    "ultralytics>=8.0.0",
+    "numpy>=1.24.0",
+    
+    # Computer Vision
+    "opencv-python>=4.8.0",
+    "albumentations>=1.3.0",
+    "pillow>=9.0.0",
+    
+    # Data & Config
+    "pyyaml>=6.0",
+    "kagglehub",
+    
+    # Visualization
+    "matplotlib>=3.7.0",
+    
+    # API Server
+    "fastapi>=0.100.0",
+    "uvicorn>=0.22.0",
+    "python-multipart>=0.0.6",
+    "httpx>=0.24.0",
+    "pydantic>=2.0.0",
+    
+    # Legacy UI
+    "streamlit>=1.24.0",
+    
+    # GPU Providers
+    "runpod>=1.7.0",
+    "inference-sdk>=0.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+]
+peft = [
+    "bitsandbytes>=0.40.0",
+    "accelerate>=0.21.0",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+]

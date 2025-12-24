@@ -18,10 +18,10 @@ from api.routes import router
 def mock_services():
     """Mock all service modules inside api.routes."""
     with patch('api.routes.service_config') as mock_config, \
-         patch('api.routes.dataset_service') as mock_dataset, \
-         patch('api.routes.training_service') as mock_training, \
+         patch('api.routes.kaggle_dataset') as mock_dataset, \
+         patch('api.routes.yolo_training') as mock_training, \
          patch('api.routes.inference_service') as mock_inference, \
-         patch('api.routes.validation_service') as mock_validation, \
+         patch('api.routes.yolo_validation') as mock_validation, \
          patch('api.routes.export_service') as mock_export, \
          patch('api.routes.preprocessing_pipeline') as mock_pipeline, \
          patch('api.routes.cleaners') as mock_cleaners, \
@@ -29,10 +29,10 @@ def mock_services():
         
         yield {
             'config': mock_config,
-            'dataset_service': mock_dataset,
+            'kaggle_dataset': mock_dataset,
             'training_service': mock_training,
             'inference_service': mock_inference,
-            'validation_service': mock_validation,
+            'yolo_validation': mock_validation,
             'export_service': mock_export,
             'pipeline': mock_pipeline,
             'cleaners': mock_cleaners,
@@ -74,12 +74,12 @@ class TestDatasetEndpoint:
         """Test successful dataset preparation."""
         # Setup mocks
         mock_services['config'].DatasetConfig = MagicMock(return_value=MagicMock())
-        mock_services['dataset_service'].DatasetService.download.return_value = "/data/dataset"
-        mock_services['dataset_service'].DatasetService.detect_structure.return_value = (
+        mock_services['kaggle_dataset'].DatasetService.download.return_value = "/data/dataset"
+        mock_services['kaggle_dataset'].DatasetService.detect_structure.return_value = (
             {"train_images": "/data/train", "val_images": "/data/val"},
             "/data/dataset"
         )
-        mock_services['dataset_service'].DatasetService.create_yaml.return_value = "/data/data.yaml"
+        mock_services['kaggle_dataset'].DatasetService.create_yaml.return_value = "/data/data.yaml"
         
         response = client.post("/datasets/prepare", json={
             "dataset_handle": "user/dataset",
@@ -96,8 +96,8 @@ class TestDatasetEndpoint:
     def test_prepare_dataset_invalid_structure(self, client, mock_services):
         """Test dataset with invalid structure returns 400."""
         mock_services['config'].DatasetConfig = MagicMock(return_value=MagicMock())
-        mock_services['dataset_service'].DatasetService.download.return_value = "/data"
-        mock_services['dataset_service'].DatasetService.detect_structure.return_value = ({}, "/data")
+        mock_services['kaggle_dataset'].DatasetService.download.return_value = "/data"
+        mock_services['kaggle_dataset'].DatasetService.detect_structure.return_value = ({}, "/data")
         
         response = client.post("/datasets/prepare", json={
             "dataset_handle": "user/invalid",

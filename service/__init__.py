@@ -45,11 +45,11 @@ from .config import (
 )
 
 # Service classes
-from .dataset_service import DatasetService
+from integrations.kaggle.dataset import DatasetService
 from .export_service import ExportService
 from .inference_service import InferenceService
-from .training_service import TrainingService
-from .validation_service import ValidationService
+from .yolo_training import TrainingService
+from .yolo.validation import ValidationService
 from .slam import SlamService, DevicePose, SpatialAnchor
 from .optimization import InferenceOptimizer, optimize_for_inference
 from .callbacks import (

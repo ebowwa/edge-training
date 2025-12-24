@@ -12,7 +12,9 @@ from fastapi import APIRouter, File, UploadFile, HTTPException, BackgroundTasks
 
 # Service imports
 from service import config as service_config
-from service import dataset_service, training_service, inference_service, validation_service, export_service
+from integrations.kaggle import dataset as kaggle_dataset
+from service import yolo_training, inference_service, export_service
+from service.yolo import validation as yolo_validation
 
 # Preprocessing imports
 from service.preprocessing import pipeline as preprocessing_pipeline
@@ -56,13 +58,13 @@ async def prepare_dataset(request: DatasetRequest):
             nc=request.nc,
             names=request.names,
         )
-        path = dataset_service.DatasetService.download(config)
-        paths, path = dataset_service.DatasetService.detect_structure(path)
+        path = kaggle_dataset.DatasetService.download(config)
+        paths, path = kaggle_dataset.DatasetService.detect_structure(path)
         
         if not paths:
             raise HTTPException(400, "No valid dataset structure found")
         
-        yaml_path = dataset_service.DatasetService.create_yaml(
+        yaml_path = kaggle_dataset.DatasetService.create_yaml(
             path, paths, config.nc, config.names
         )
         
@@ -94,7 +96,7 @@ async def train_model(request: TrainingRequest):
             weights=request.weights,
             base_model=request.base_model,
         )
-        result = training_service.TrainingService.train(request.yaml_path, config)
+        result = yolo_training.TrainingService.train(request.yaml_path, config)
         
         return TrainingResponse(
             best_model_path=result.best_model_path,
@@ -110,7 +112,7 @@ async def train_model(request: TrainingRequest):
 async def resume_training(project: str = "runs/train", name: str = "yolo_train"):
     """Resume training from last checkpoint."""
     try:
-        result = training_service.TrainingService.resume(project, name)
+        result = yolo_training.TrainingService.resume(project, name)
         return TrainingResponse(
             best_model_path=result.best_model_path,
             last_model_path=result.last_model_path,
@@ -186,7 +188,7 @@ async def validate_model(request: ValidationRequest):
     """Validate a trained model."""
     try:
         config = service_config.ValidationConfig(imgsz=request.imgsz, split=request.split)
-        result = validation_service.ValidationService.validate(
+        result = yolo_validation.ValidationService.validate(
             request.model_path, request.yaml_path, config
         )
         

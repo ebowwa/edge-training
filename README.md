@@ -9,7 +9,7 @@ This system is designed to bridge the gap between high-power cloud computing and
 - **Cloud/Server Role (The Brain)**: 
   - **Heavy Training**: Run multi-GPU training jobs for large backbone models.
   - **High-Accuracy Inference**: Serve complex models via the FastAPI `/api/v1/infer` endpoint for remote devices.
-  - **PEFT Training**: Fine-tune "Personal Object" models with LoRA/BitFit using minimal data from the edge.
+  - **PEFT Training** *(TODO)*: Stub for LoRA/BitFit fine-tuning - not yet integrated.
 - **Local Edge Role (The Reflex)**:
   - **Lightweight SLAM**: Track 3D world coordinates and camera pose locally without internet latency.
   - **Quantized Export**: Use the `ExportService` to shrink models into **NCNN, TFLite, or CoreML** for 8-bit on-device execution.
@@ -28,16 +28,14 @@ For more details, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## 🚀 Key Features
 
-- **Multi-Backend Support**: YOLO family (via Ultralytics) and RF-DETR (transformer, 60+ AP on COCO).
-- **3D Spatial Intelligence (SLAM)**: Real-time 6DoF camera pose estimation and 3D object anchoring for wearables.
-- **PEFT / Personal Learning**: Train custom "Private" models with 5-10 images using **LoRA** (Low-Rank Adaptation).
+- **Multi-Backend Support**: YOLO family (via Ultralytics) and RF-DETR (transformer detection).
+- **2D Spatial Tracking**: Optical flow-based camera motion estimation for wearable devices (glasses, phones).
 - **Automated Dataset Prep**: Integration with Kaggle for dataset downloads and automatic YOLO structure detection.
 - **Preprocessing Pipeline**: Composable cleaners (corrupted image detection, bbox validation) and transforms (augmentation).
 - **Deployment-Ready Exports**: Export trained models to NCNN, ONNX, CoreML, and TFLite formats for edge hardware.
 - **Inference Optimization**: JIT tracing for up to 2x speedup on PyTorch models.
 - **Training Callbacks**: TensorBoard, W&B logging, and early stopping built-in.
-- **Interactive Counting**: Human-in-the-loop density refinement based on [arxiv:2309.05277](https://arxiv.org/abs/2309.05277).
-- **Advanced AI Capabilities**: Gaze-prioritized learning and dense counting with SimOTA. See [CAPABILITIES.md](docs/CAPABILITIES.md).
+- **MobileNet Convolutions**: Depthwise separable convolutions for ~8x computational savings.
 
 ## 🛠 Setup
 

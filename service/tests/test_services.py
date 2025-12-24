@@ -6,10 +6,11 @@ Verifies imports and basic functionality without requiring GPU/datasets.
 service/
 ├── __init__.py
 ├── config.py
-├── dataset_service.py
-├── training_service.py
+├── integrations/kaggle/dataset.py
+├── yolo_training.py
 ├── inference_service.py
-├── validation_service.py
+├── yolo/
+│   └── validation.py
 ├── export_service.py
 └── tests/
     ├── __init__.py
@@ -51,10 +52,10 @@ except Exception as e:
 # Test 2: Import all service classes
 print("\n[2/5] Testing service imports...")
 try:
-    from service.dataset_service import DatasetService
-    from service.training_service import TrainingService
+    from integrations.kaggle.dataset import DatasetService
+    from service.yolo_training import TrainingService
     from service.inference_service import InferenceService
-    from service.validation_service import ValidationService
+    from service.yolo.validation import ValidationService
     from service.export_service import ExportService
     print("  ✓ All service classes imported successfully")
 except Exception as e:
