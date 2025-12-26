@@ -18,12 +18,12 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 
 # Handle imports from project root
-from .base import Pipeline, PipelineStage, PipelineContext, FunctionStage
+from pipeline.base import Pipeline, PipelineStage, PipelineContext, FunctionStage
 
 # Import services from project root
 from service.inference_service import InferenceService
 from service.config import InferenceConfig, Detection, ModelRegistry
-from service.slam import SlamService, DevicePose, SpatialAnchor
+from service.slam.slam_service import SlamService, DevicePose, SpatialAnchor
 from service.optimization import InferenceOptimizer
 from service.rfdetr_service import RFDETRService, RFDETRDetection, RFDETR_AVAILABLE
 

@@ -14,7 +14,7 @@ from pipeline.spatial_inference import (
     SpatialInferenceResult,
     InferenceStage,
 )
-from service.slam import DevicePose, SpatialAnchor
+from service.slam.slam_service import DevicePose, SpatialAnchor
 
 
 class TestSpatialDetection(unittest.TestCase):

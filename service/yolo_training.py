@@ -8,7 +8,7 @@ import os
 
 from ultralytics import YOLO
 
-from .config import TrainingConfig, TrainingResult
+from service.config import TrainingConfig, TrainingResult
 
 logging.basicConfig(
     level=logging.INFO,

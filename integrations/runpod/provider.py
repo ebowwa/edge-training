@@ -10,7 +10,7 @@ from typing import Any, List, Optional
 
 import runpod
 
-from ..base import (
+from integrations.base import (
     GPUProvider,
     TrainingJobConfig,
     InferenceJobConfig,
@@ -18,7 +18,7 @@ from ..base import (
     JobStatus,
     JobResult,
 )
-from .config import RunPodConfig
+from integrations.runpod.config import RunPodConfig
 
 logger = logging.getLogger(__name__)
 

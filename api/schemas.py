@@ -24,6 +24,19 @@ class DatasetResponse(BaseModel):
     splits: Dict[str, str]  # e.g., {"train": "path", "val": "path"}
 
 
+class RoboflowDatasetRequest(BaseModel):
+    """Request to download Roboflow dataset."""
+    url: str = Field(..., description="Roboflow export URL (https://app.roboflow.com/ds/KEY?style=zip)")
+    output_dir: Optional[str] = Field("datasets/roboflow", description="Output directory")
+
+
+class RoboflowDatasetResponse(BaseModel):
+    """Response from Roboflow dataset download."""
+    yaml_path: str
+    dataset_path: str
+    info: Dict[str, Any] = {}  # Dataset statistics
+
+
 # === Training Schemas ===
 
 class TrainingRequest(BaseModel):
@@ -194,3 +207,45 @@ class HealthResponse(BaseModel):
     """Health check response."""
     status: str = "ok"
     version: str = "0.1.0"
+
+
+# === Planner Schemas ===
+
+class PlannerRequest(BaseModel):
+    """Request for training resource planning."""
+    num_images: int = Field(..., ge=1, description="Number of training images")
+    resolution_width: int = Field(640, ge=32, le=4096, description="Image width")
+    resolution_height: int = Field(640, ge=32, le=4096, description="Image height")
+    model_variant: str = Field("m", pattern="^(n|s|m|l|x)$", description="YOLO variant")
+    epochs: int = Field(60, ge=1, le=1000)
+    batch_size: int = Field(32, ge=1, le=256)
+    augment_factor: int = Field(1, ge=1, le=10, description="Augmentation multiplier")
+    gpu_name: Optional[str] = Field(None, description="Specific GPU for cost estimation")
+
+
+class StorageEstimate(BaseModel):
+    """Storage requirement estimates."""
+    dataset: str
+    dataset_augmented: str
+    model_weights: str
+    checkpoints: str
+    cache: str
+    total: str
+
+
+class ComputeEstimate(BaseModel):
+    """Compute requirement estimates."""
+    vram: str
+    recommended_gpu: str
+    training_hours: str
+    cpu_hours: Optional[str] = None
+    recommended_cpu: Optional[str] = None
+    ram: Optional[str] = None
+    estimated_cost: Optional[str] = None
+
+
+class PlannerResponse(BaseModel):
+    """Response from training resource planning."""
+    storage: StorageEstimate
+    compute: ComputeEstimate
+    specs: Dict[str, str]

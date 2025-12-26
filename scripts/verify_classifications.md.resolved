@@ -1,0 +1,22 @@
+# Verify Classification Accuracy
+
+Check if these sample images were classified correctly:
+
+## Sample 1: `1USD` → `1USD-Front`
+![1USD classified as Front](/Users/ebowwa/.gemini/antigravity/brain/3bbff6a3-b21f-4cda-bf88-6a8f5ebac816/sample_1USD_classified_front.jpg)
+
+**Is this the FRONT of a $1 bill?**
+
+---
+
+## Sample 2: `10USD` → `10USD-Back`
+![10USD classified as Back](/Users/ebowwa/.gemini/antigravity/brain/3bbff6a3-b21f-4cda-bf88-6a8f5ebac816/sample_10USD_classified_back.jpg)
+
+**Is this the BACK of a $10 bill?**
+
+---
+
+## Sample 3: `100USD` → `100USD-Front`
+![100USD classified as Front](/Users/ebowwa/.gemini/antigravity/brain/3bbff6a3-b21f-4cda-bf88-6a8f5ebac816/sample_100USD_classified_front.jpg)
+
+**Is this the FRONT of a $100 bill?**

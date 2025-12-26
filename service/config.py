@@ -3,63 +3,87 @@ Configuration dataclasses for YOLO Training Service.
 Type-safe configuration for all service operations.
 """
 
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 
 class ModelRegistry:
     """
-    Centralized registry for YOLO model paths.
-    
+    Centralized registry for YOLO and RF-DETR models.
+
     All model path references should go through this registry to ensure
     consistency and make model management easier.
-    
+
+    Models are loaded from models.json in the same directory as this file.
+
     Usage:
         from service.config import ModelRegistry
-        
+
         # Get a specific model
         path = ModelRegistry.get_path("yolov8m.pt")  # -> "resources/yolov8m.pt"
-        
+
         # Use the default model
         path = ModelRegistry.get_path(ModelRegistry.DEFAULT)
-        
+
         # List available models
         models = ModelRegistry.list_available()
-        
+
+        # Get model info
+        info = ModelRegistry.get_model_info("yolov8m.pt")
+
         # Auto-download if missing (inspired by RF-DETR)
         path = ModelRegistry.download_if_missing("yolov8n.pt")
     """
-    
+
     MODELS_DIR = "resources"
     DEFAULT = "yolov8m.pt"
-    
-    # Hosted models for auto-download (inspired by RF-DETR pattern)
-    # URLs for official Ultralytics YOLO models
-    HOSTED_MODELS = {
-        # YOLOv8 variants
-        "yolov8n.pt": "https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8n.pt",
-        "yolov8s.pt": "https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8s.pt",
-        "yolov8m.pt": "https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8m.pt",
-        "yolov8l.pt": "https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8l.pt",
-        "yolov8x.pt": "https://github.com/ultralytics/assets/releases/download/v8.2.0/yolov8x.pt",
-        # YOLOv11 variants
-        "yolo11n.pt": "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.pt",
-        "yolo11s.pt": "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11s.pt",
-        "yolo11m.pt": "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11m.pt",
-        "yolo11l.pt": "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11l.pt",
-        "yolo11x.pt": "https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11x.pt",
-    }
-    
-    # RF-DETR model variants (require rfdetr package)
-    RFDETR_MODELS = {
-        "rfdetr-nano": {"params": "30.5M", "resolution": 384, "coco_ap": 48.4},
-        "rfdetr-small": {"params": "32.1M", "resolution": 512, "coco_ap": 53.0},
-        "rfdetr-medium": {"params": "33.7M", "resolution": 576, "coco_ap": 54.7},
-        "rfdetr-base": {"params": "29M", "resolution": 560, "coco_ap": 53.3},
-        "rfdetr-large": {"params": "128M", "resolution": 560, "coco_ap": 56.0},
-        "rfdetr-seg": {"params": "~35M", "resolution": 384, "coco_ap": 42.7, "segmentation": True},
-    }
+    _MODELS_JSON: Optional[Dict[str, Any]] = None
+    _JSON_PATH = Path(__file__).parent / "models.json"
+
+    @classmethod
+    def _load_models_json(cls) -> Dict[str, Any]:
+        """Load models from JSON file (cached)."""
+        if cls._MODELS_JSON is None:
+            if not cls._JSON_PATH.exists():
+                raise FileNotFoundError(
+                    f"Models configuration file not found: {cls._JSON_PATH}"
+                )
+            with open(cls._JSON_PATH, "r") as f:
+                cls._MODELS_JSON = json.load(f)
+        return cls._MODELS_JSON
+
+    @classmethod
+    def _reload_models(cls) -> None:
+        """Force reload of models JSON file."""
+        cls._MODELS_JSON = None
+        cls._load_models_json()
+
+    @classmethod
+    def get_yolo_models(cls) -> Dict[str, Dict[str, Any]]:
+        """Get all YOLO models from JSON config."""
+        data = cls._load_models_json()
+        return data.get("yolo", {}).get("models", {})
+
+    @classmethod
+    def get_rfdetr_models(cls) -> Dict[str, Dict[str, Any]]:
+        """Get all RF-DETR models from JSON config."""
+        data = cls._load_models_json()
+        return data.get("rfdetr", {}).get("models", {})
+
+    @classmethod
+    def get_yolo_url(cls, model_name: str) -> Optional[str]:
+        """Get download URL for a YOLO model."""
+        models = cls.get_yolo_models()
+        model_info = models.get(model_name, {})
+        return model_info.get("url")
+
+    @classmethod
+    def get_rfdetr_info(cls, model_name: str) -> Dict[str, Any]:
+        """Get info for an RF-DETR model."""
+        models = cls.get_rfdetr_models()
+        return models.get(model_name, {})
     
     @classmethod
     def get_path(cls, model_name: str) -> str:
@@ -97,8 +121,8 @@ class ModelRegistry:
     
     @classmethod
     def list_downloadable(cls) -> List[str]:
-        """List all models available for download."""
-        return list(cls.HOSTED_MODELS.keys())
+        """List all YOLO models available for download."""
+        return list(cls.get_yolo_models().keys())
     
     @classmethod
     def exists(cls, model_name: str) -> bool:
@@ -108,56 +132,56 @@ class ModelRegistry:
     @classmethod
     def download_if_missing(cls, model_name: str, force: bool = False) -> str:
         """
-        Download a model if it's not present locally.
-        
+        Download a YOLO model if it's not present locally.
+
         Inspired by RF-DETR's download_pretrain_weights pattern.
-        
+
         Args:
             model_name: Name of the model to download (e.g., "yolov8n.pt")
             force: If True, re-download even if file exists
-            
+
         Returns:
             Path to the downloaded model
-            
+
         Raises:
-            ValueError: If model is not in HOSTED_MODELS
+            ValueError: If model is not in YOLO models registry
         """
         import logging
         import urllib.request
-        
+
         model_path = cls.get_path(model_name)
-        
+
         # Already exists and not forcing re-download
         if cls.exists(model_name) and not force:
             logging.info(f"Model already exists: {model_path}")
             return model_path
-        
-        # Check if model is available for download
-        if model_name not in cls.HOSTED_MODELS:
-            available = ", ".join(cls.HOSTED_MODELS.keys())
+
+        # Get download URL from JSON
+        url = cls.get_yolo_url(model_name)
+        if url is None:
+            available = ", ".join(cls.get_yolo_models().keys())
             raise ValueError(
-                f"Model '{model_name}' not found in HOSTED_MODELS. "
+                f"Model '{model_name}' not found in YOLO registry. "
                 f"Available: {available}"
             )
-        
+
         # Ensure directory exists
         Path(cls.MODELS_DIR).mkdir(parents=True, exist_ok=True)
-        
-        url = cls.HOSTED_MODELS[model_name]
+
         logging.info(f"Downloading {model_name} from {url}...")
-        
+
         try:
             urllib.request.urlretrieve(url, model_path)
             logging.info(f"Successfully downloaded: {model_path}")
         except Exception as e:
             raise RuntimeError(f"Failed to download {model_name}: {e}")
-        
+
         return model_path
     
     @classmethod
     def is_rfdetr_model(cls, model_name: str) -> bool:
         """Check if model name is an RF-DETR variant."""
-        return model_name.startswith("rfdetr-") or model_name in cls.RFDETR_MODELS
+        return model_name.startswith("rfdetr-") or model_name in cls.get_rfdetr_models()
     
     @classmethod
     def get_backend(cls, model_name: str) -> str:
@@ -175,14 +199,37 @@ class ModelRegistry:
     def list_all_models(cls) -> dict:
         """
         List all available models (YOLO + RF-DETR).
-        
+
         Returns:
             Dict with "yolo" and "rfdetr" keys containing model lists
         """
         return {
-            "yolo": list(cls.HOSTED_MODELS.keys()),
-            "rfdetr": list(cls.RFDETR_MODELS.keys()),
+            "yolo": list(cls.get_yolo_models().keys()),
+            "rfdetr": list(cls.get_rfdetr_models().keys()),
         }
+
+    @classmethod
+    def get_model_info(cls, model_name: str) -> Dict[str, Any]:
+        """
+        Get detailed information about a model.
+
+        Args:
+            model_name: Name of the model (e.g., "yolov8m.pt", "rfdetr-base")
+
+        Returns:
+            Dict with model information (url, variant, family, params, etc.)
+        """
+        # Check YOLO models first
+        yolo_models = cls.get_yolo_models()
+        if model_name in yolo_models:
+            return yolo_models[model_name]
+
+        # Check RF-DETR models
+        rfdetr_models = cls.get_rfdetr_models()
+        if model_name in rfdetr_models:
+            return rfdetr_models[model_name]
+
+        return {}
 
 
 @dataclass

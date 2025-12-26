@@ -8,7 +8,10 @@ import tempfile
 from typing import Optional
 from pathlib import Path
 
-from fastapi import APIRouter, File, UploadFile, HTTPException, BackgroundTasks
+from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
+
+# Dependency imports
+from api.dependencies import get_inference_service, get_slam_service
 
 # Service imports
 from service import config as service_config
@@ -21,9 +24,10 @@ from service.preprocessing import pipeline as preprocessing_pipeline
 from service.preprocessing import cleaners, transforms
 
 # SLAM imports
-from service.slam import SlamService, DevicePose, SpatialAnchor
+from service.slam.slam_service import SlamService, DevicePose, SpatialAnchor
+from service.config import Detection
 
-from .schemas import (
+from api.schemas import (
     DatasetRequest, DatasetResponse,
     TrainingRequest, TrainingResponse,
     InferenceRequest, InferenceResponse, DetectionResult,
@@ -34,7 +38,16 @@ from .schemas import (
     AnchorDetectionRequest, SpatialAnchorResponse,
     SlamMapResponse, SlamConfigRequest, SlamStatusResponse,
     ImuData, HealthResponse,
+    PlannerRequest, PlannerResponse,
+    StorageEstimate, ComputeEstimate,
+    RoboflowDatasetRequest, RoboflowDatasetResponse,
 )
+
+# Planner imports
+from service.planner import plan_training
+
+# Roboflow dataset imports
+from integrations.roboflow.dataset import RoboflowDatasetDownloader
 
 router = APIRouter()
 
@@ -45,6 +58,28 @@ router = APIRouter()
 async def health_check():
     """Check API health."""
     return HealthResponse()
+
+
+# === Planner ===
+
+@router.post("/plan", response_model=PlannerResponse, tags=["Planner"])
+async def plan_resources(request: PlannerRequest):
+    """Plan storage and compute requirements for training."""
+    result = plan_training(
+        num_images=request.num_images,
+        resolution=(request.resolution_width, request.resolution_height),
+        model_variant=request.model_variant,
+        epochs=request.epochs,
+        batch_size=request.batch_size,
+        augment_factor=request.augment_factor,
+        gpu_name=request.gpu_name,
+    )
+
+    return PlannerResponse(
+        storage=StorageEstimate(**result["storage"]),
+        compute=ComputeEstimate(**result["compute"]),
+        specs=result["specs"],
+    )
 
 
 # === Dataset ===
@@ -77,10 +112,29 @@ async def prepare_dataset(request: DatasetRequest):
         raise HTTPException(500, str(e))
 
 
-# === Training ===
+@router.post("/datasets/roboflow", response_model=RoboflowDatasetResponse, tags=["Dataset"])
+async def download_roboflow_dataset(request: RoboflowDatasetRequest):
+    """Download and prepare a Roboflow dataset for training."""
+    try:
+        downloader = RoboflowDatasetDownloader()
+        yaml_path = downloader.download_from_url(
+            url=request.url,
+            output_dir=request.output_dir,
+        )
 
-# Store for background training jobs
-_training_jobs = {}
+        # Get dataset info
+        info = downloader.get_dataset_info(yaml_path)
+
+        return RoboflowDatasetResponse(
+            yaml_path=yaml_path,
+            dataset_path=str(Path(yaml_path).parent),
+            info=info,
+        )
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+# === Training ===
 
 @router.post("/train", response_model=TrainingResponse, tags=["Training"])
 async def train_model(request: TrainingRequest):
@@ -129,26 +183,17 @@ async def resume_training(project: str = "runs/train", name: str = "yolo_train")
 
 # === Inference ===
 
-# Cached inference services
-_inference_cache = {}
-
-def _get_inference_service(model_path: str):
-    """Get or create cached inference service."""
-    if model_path not in _inference_cache:
-        _inference_cache[model_path] = inference_service.InferenceService(model_path)
-    return _inference_cache[model_path]
-
-
 @router.post("/infer/image", response_model=InferenceResponse, tags=["Inference"])
 async def infer_image(
     model_path: str,
     image: UploadFile = File(...),
     conf_threshold: float = 0.5,
+    svc: inference_service.InferenceService = Depends(
+        lambda r: get_inference_service(r.query_params.get("model_path", ""))
+    ),
 ):
     """Run inference on an uploaded image."""
     try:
-        svc = _get_inference_service(model_path)
-        
         # Save uploaded file temporarily
         with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
             content = await image.read()
@@ -276,42 +321,33 @@ async def preprocess_dataset(request: PreprocessingRequest):
 
 # === SLAM ===
 
-# Global SLAM service instance
-_slam_service: SlamService = None
-
-
-def _get_slam_service(config: dict = None) -> SlamService:
-    """Get or create the SLAM service instance."""
-    global _slam_service
-    if _slam_service is None:
-        _slam_service = SlamService(config or {})
-    return _slam_service
-
-
 @router.post("/slam/init", response_model=SlamStatusResponse, tags=["SLAM"])
-async def initialize_slam(request: SlamConfigRequest):
+async def initialize_slam(
+    request: SlamConfigRequest,
+    slam: SlamService = Depends(get_slam_service),
+):
     """Initialize the SLAM service with configuration."""
-    global _slam_service
     try:
-        config = {"imu_enabled": request.imu_enabled}
-        _slam_service = SlamService(config)
+        slam.config["imu_enabled"] = request.imu_enabled
+        slam.imu_enabled = request.imu_enabled
         return SlamStatusResponse(
             initialized=True,
             imu_enabled=request.imu_enabled,
-            active_anchors=0,
+            active_anchors=len(slam.active_anchors),
         )
     except Exception as e:
         raise HTTPException(500, str(e))
 
 
 @router.get("/slam/status", response_model=SlamStatusResponse, tags=["SLAM"])
-async def get_slam_status():
+async def get_slam_status(
+    slam: SlamService = Depends(get_slam_service),
+):
     """Get current SLAM service status."""
-    svc = _get_slam_service()
     return SlamStatusResponse(
         initialized=True,
-        imu_enabled=svc.imu_enabled,
-        active_anchors=len(svc.active_anchors),
+        imu_enabled=slam.imu_enabled,
+        active_anchors=len(slam.active_anchors),
     )
 
 
@@ -319,20 +355,19 @@ async def get_slam_status():
 async def update_pose(
     frame: UploadFile = File(...),
     request: SlamPoseRequest = None,
+    slam: SlamService = Depends(get_slam_service),
 ):
     """Update device pose from frame (and optional IMU data)."""
     import numpy as np
     from PIL import Image
     import io
-    
+
     try:
-        svc = _get_slam_service()
-        
         # Read frame
         content = await frame.read()
         image = Image.open(io.BytesIO(content))
         frame_array = np.array(image)
-        
+
         # Convert IMU data if provided
         imu_dict = None
         if request and request.imu_data:
@@ -344,9 +379,9 @@ async def update_pose(
                 "gyro_y": request.imu_data.gyro_y,
                 "gyro_z": request.imu_data.gyro_z,
             }
-        
-        pose = svc.update_pose(frame_array, imu_dict)
-        
+
+        pose = slam.update_pose(frame_array, imu_dict)
+
         return DevicePoseResponse(
             timestamp=pose.timestamp,
             delta_x=pose.delta_x,
@@ -358,28 +393,22 @@ async def update_pose(
 
 
 @router.post("/slam/anchor", response_model=SpatialAnchorResponse, tags=["SLAM"])
-async def create_anchor(request: AnchorDetectionRequest):
+async def create_anchor(
+    request: AnchorDetectionRequest,
+    slam: SlamService = Depends(get_slam_service),
+):
     """Create a spatial anchor from a detection."""
     try:
-        svc = _get_slam_service()
-        
-        # Create a mock detection object for the service
-        class MockDetection:
-            def __init__(self, class_name, confidence, bbox):
-                self.class_name = class_name
-                self.confidence = confidence
-                self.bbox = bbox
-        
-        detection = MockDetection(
-            request.class_name,
-            request.confidence,
-            request.bbox,
+        detection = Detection(
+            class_name=request.class_name,
+            confidence=request.confidence,
+            bbox=request.bbox,
         )
-        
+
         # Use current pose (or default)
         pose = DevicePose(timestamp=0.0)
-        anchor = svc.anchor_detection(detection, pose)
-        
+        anchor = slam.anchor_detection(detection, pose)
+
         return SpatialAnchorResponse(
             id=anchor.id,
             label=anchor.label,
@@ -391,12 +420,13 @@ async def create_anchor(request: AnchorDetectionRequest):
 
 
 @router.get("/slam/map", response_model=SlamMapResponse, tags=["SLAM"])
-async def get_spatial_map():
+async def get_spatial_map(
+    slam: SlamService = Depends(get_slam_service),
+):
     """Get the current spatial map of all anchored detections."""
     try:
-        svc = _get_slam_service()
-        anchors = svc.get_active_map()
-        
+        anchors = slam.get_active_map()
+
         return SlamMapResponse(
             anchors=[
                 SpatialAnchorResponse(
@@ -414,19 +444,17 @@ async def get_spatial_map():
 
 
 @router.delete("/slam/reset", response_model=SlamStatusResponse, tags=["SLAM"])
-async def reset_slam():
+async def reset_slam(
+    slam: SlamService = Depends(get_slam_service),
+):
     """Reset the SLAM service and clear all anchors."""
-    global _slam_service
     try:
-        if _slam_service:
-            imu_enabled = _slam_service.imu_enabled
-            _slam_service = SlamService({"imu_enabled": imu_enabled})
-        else:
-            _slam_service = SlamService({})
-        
+        imu_enabled = slam.imu_enabled
+        slam.active_anchors.clear()
+
         return SlamStatusResponse(
             initialized=True,
-            imu_enabled=_slam_service.imu_enabled,
+            imu_enabled=imu_enabled,
             active_anchors=0,
         )
     except Exception as e:

@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from inference_sdk import InferenceHTTPClient
 
-from .config import RoboflowConfig
+from integrations.roboflow.config import RoboflowConfig
 
 logger = logging.getLogger(__name__)
 

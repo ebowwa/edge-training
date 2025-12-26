@@ -5,9 +5,13 @@ Main entry point for the YOLO Training API server.
 import sys
 import os
 import uvicorn
+from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+# Service imports
+from service.slam.slam_service import SlamService
 
 # Resolve paths
 _server_dir = Path(__file__).parent
@@ -20,7 +24,22 @@ sys.path.insert(0, str(_root_dir))
 sys.path.insert(0, str(_api_dir))
 sys.path.insert(0, str(_service_dir))
 
-from api import router as api_router
+from api.routes import router as api_router
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Manage application lifespan.
+
+    Initializes stateful services on startup and cleans up on shutdown.
+    """
+    # Startup
+    app.state.slam = SlamService({"imu_enabled": False})
+    yield
+    # Shutdown
+    app.state.slam = None
+
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
@@ -30,6 +49,7 @@ def create_app() -> FastAPI:
         version="0.1.0",
         docs_url="/docs",
         redoc_url="/redoc",
+        lifespan=lifespan,
     )
 
     # Configure CORS
@@ -55,12 +75,13 @@ def create_app() -> FastAPI:
 
     return app
 
+
 app = create_app()
 
 if __name__ == "__main__":
     # Get port from environment or default to 8000
     port = int(os.getenv("PORT", 8000))
     host = os.getenv("HOST", "0.0.0.0")
-    
+
     print(f"Starting YOLO Training API on {host}:{port}")
     uvicorn.run("main:app", host=host, port=port, reload=True)

@@ -1,0 +1,91 @@
+# RF-DETR Training Implementation Plan
+
+## Goal
+Set up autonomous RF-DETR training pipeline on Modal GPU using cleaned USD dataset (6,935 images) with Doppler for secrets management.
+
+## Architecture
+
+### 1. Data Preparation
+- ✅ Cleaned dataset: 6,935 images
+- ✅ COCO format annotations
+- ✅ Modal volume: `usd-dataset-test`
+- [ ] Create data.yaml for RF-DETR
+- [ ] Update volume with cleaned dataset
+
+### 2. Training Configuration
+- Model: RT-DETR (real-time detection transformer)
+- Framework: Ultralytics
+- GPU: A100 (Modal)
+- Secrets: Doppler (`seed` project, `claude` config)
+- Epochs: 100 (configurable)
+- Image size: 640x640
+- Batch size: 16 (A100 optimized)
+
+### 3. Modal Training Function
+```python
+@app.function(
+    image=training_image,
+    gpu="A100",
+    timeout=7200,  # 2 hours
+    volumes={"/data": volume},
+    secrets=[modal.Secret.from_name("doppler-token")]
+)
+def train_rfdetr():
+    # Load dataset from volume
+    # Train RT-DETR
+    # Save checkpoints to volume
+    # Log to W&B (via Doppler secrets)
+```
+
+### 4. Composable Components
+- [RFDETRTrainer](file:///Users/ebowwa/apps/caringmind-project/edge-training/pipeline/modal_volume.py#153-192) class in [pipeline/modal_volume.py](file:///Users/ebowwa/apps/caringmind-project/edge-training/pipeline/modal_volume.py)
+- Reusable for future training runs
+- Easy parameter tuning
+- Checkpoint resumption support
+
+### 5. Monitoring
+- Weights & Biases integration
+- TensorBoard logs
+- Real-time GPU metrics
+- Training curves
+
+## Implementation Steps
+
+### Phase 1: Data Setup
+1. Create COCO data.yaml for RF-DETR
+2. Verify COCO annotations format
+3. Upload cleaned dataset to volume (or update existing)
+
+### Phase 2: Training Script
+1. Create `scripts/train_rfdetr.py`
+2. Implement RFDE
+TR training with Ultralytics
+3. Add Doppler integration for secrets
+4. Add checkpoint saving to volume
+
+### Phase 3: Modal Integration
+1. Update [pipeline/modal_volume.py](file:///Users/ebowwa/apps/caringmind-project/edge-training/pipeline/modal_volume.py) with [RFDETRTrainer](file:///Users/ebowwa/apps/caringmind-project/edge-training/pipeline/modal_volume.py#153-192)
+2. Add training function to Modal app
+3. Configure A100 GPU settings
+4. Set up volume mounts
+
+### Phase 4: Execution
+1. Run training on Modal
+2. Monitor progress
+3. Save best checkpoint
+4. Export for edge deployment
+
+## Expected Outputs
+
+- Trained RT-DETR model checkpoint
+- Training logs and metrics
+- Validation results
+- Model ready for edge export (ONNX/CoreML)
+
+## Timeline
+
+- Data setup: ~10 min
+- Training (100 epochs): ~60-90 min on A100
+- Validation & export: ~10 min
+
+**Total: ~2 hours**

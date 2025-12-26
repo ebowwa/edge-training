@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(rm:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(uv run pytest:*)",
+      "Bash(python:*)",
+      "Bash(uv run python:*)",
+      "Bash(curl:*)"
     ]
   }
 }

@@ -8,7 +8,7 @@ import os
 
 from ultralytics import YOLO
 
-from .config import ValidationConfig, ValidationResult
+from service.config import ValidationConfig, ValidationResult
 
 logging.basicConfig(
     level=logging.INFO,

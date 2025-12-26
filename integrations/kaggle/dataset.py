@@ -10,7 +10,7 @@ from typing import Dict, Optional, Tuple
 import kagglehub
 import yaml
 
-from .config import DatasetConfig
+from service.config import DatasetConfig
 
 logging.basicConfig(
     level=logging.INFO,

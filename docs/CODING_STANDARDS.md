@@ -26,6 +26,7 @@ integrations/ → External provider integrations (Kaggle, RunPod, etc.)
 - Meaningful variable/function names
 - **Docstrings** on functions
 - Lines under **80 characters** (where reasonable)
+- **No `__init__.py`** unless package-level initialization is needed (Python 3.3+ namespace packages)
 
 ---
 

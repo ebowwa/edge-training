@@ -8,7 +8,7 @@ import os
 from dataclasses import dataclass, field
 from typing import Optional
 
-from ..base import GPUProviderConfig
+from integrations.base import GPUProviderConfig
 
 
 @dataclass
