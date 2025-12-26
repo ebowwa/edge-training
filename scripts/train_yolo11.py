@@ -1,110 +1,80 @@
 """
-YOLO11 Training on Modal - Proper W&B Integration
+YOLO11 Training on Modal - Composable Configuration
 
-Uses ONLY Ultralytics native W&B integration (no manual wandb.init)
-This logs ALL training metrics: box_loss, cls_loss, dfl_loss, mAP, precision, recall
+Uses pipeline/yolo_training/config.py for all settings.
+Uses Ultralytics native W&B integration.
 """
 
 import modal
 import os
+import sys
+from pathlib import Path
 
-# App and Volumes
-app = modal.App("usd-yolo11-training")
-# Fresh volume with HuggingFace dataset - old one was deleted
-data_volume = modal.Volume.from_name("usd-dataset-hf", create_if_missing=False)
-checkpoint_volume = modal.Volume.from_name("usd-checkpoints", create_if_missing=True)
+# Add project root to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Configuration
-GPU_TYPE = "H100"
-BATCH_SIZE = 32
-EPOCHS = 50
-IMGSZ = 640
+from pipeline.yolo_training.config import YOLOConfig, ModalYOLOConfig
 
-# Build image
+# Load config
+modal_config = ModalYOLOConfig()
+yolo_config = YOLOConfig()
+
+# Modal setup
+app = modal.App(modal_config.app_name)
+data_volume = modal.Volume.from_name(modal_config.data_volume, create_if_missing=False)
+checkpoint_volume = modal.Volume.from_name(modal_config.checkpoint_volume, create_if_missing=True)
+
+# Build image from config
 image = (
     modal.Image.debian_slim(python_version="3.11")
-    .pip_install(
-        "ultralytics",
-        "torch",
-        "torchvision", 
-        "opencv-python-headless",
-        "pyyaml",
-        "wandb",
-    )
-    .apt_install("libgl1-mesa-glx", "libglib2.0-0")
+    .pip_install(*modal_config.pip_packages)
+    .apt_install(*modal_config.apt_packages)
 )
 
 
 @app.function(
     image=image,
-    gpu=GPU_TYPE,
-    timeout=7200,
+    gpu=modal_config.gpu_type,
+    timeout=modal_config.timeout,
     volumes={"/data": data_volume, "/checkpoints": checkpoint_volume},
-    secrets=[modal.Secret.from_name("wandb-secret")],
+    secrets=[modal.Secret.from_name(modal_config.wandb_secret)],
 )
-def train_yolo11(epochs: int = EPOCHS, batch_size: int = BATCH_SIZE):
+def train_yolo11(epochs: int = None, batch_size: int = None):
     """Train YOLO11 with full W&B training metrics logging."""
-    import os
     from ultralytics import YOLO, settings
-    from pathlib import Path
     
-    # Set W&B project/name via env vars BEFORE enabling integration
-    # This lets Ultralytics create the run and log ALL training metrics:
-    # box_loss, cls_loss, dfl_loss, mAP50, mAP50-95, precision, recall,
-    # confusion matrix, PR curves, sample predictions
-    os.environ["WANDB_PROJECT"] = "usd-detection"
-    os.environ["WANDB_NAME"] = f"yolo11l-{epochs}ep-h100"
-    
-    # Enable Ultralytics native W&B - this is the ONLY W&B setup needed
-    # It automatically logs: box_loss, cls_loss, dfl_loss, mAP50, mAP50-95, 
-    # precision, recall, confusion matrix, PR curves, sample predictions
-    settings.update(wandb=True)
-    
-    print(f"🚀 Starting YOLO11 Training")
-    print(f"GPU: {GPU_TYPE}, Batch: {batch_size}, Epochs: {epochs}")
-    print(f"W&B Project: usd-detection")
-    
-    # Check for checkpoint
-    checkpoint_path = "/checkpoints/usd-yolo11/train/weights/last.pt"
-    if Path(checkpoint_path).exists():
-        print(f"📦 Resuming from: {checkpoint_path}")
-        model = YOLO(checkpoint_path)
-    else:
-        print(f"📦 Loading base model: yolo11l.pt")
-        model = YOLO("yolo11l.pt")
-    
-    # Train - Ultralytics handles ALL W&B logging automatically
-    results = model.train(
-        data="/data/data.yaml",
-        epochs=epochs,
-        imgsz=IMGSZ,
-        batch=batch_size,
-        device=0,
-        project="/checkpoints/usd-yolo11",
-        name="train",
-        exist_ok=True,
-        resume=False,
-        amp=True,
-        cache=False,
-        workers=0,
-        verbose=True,
-        plots=True,
-        save=True,
-        save_period=10,
+    # Override config with passed args
+    config = YOLOConfig(
+        epochs=epochs or yolo_config.epochs,
+        batch_size=batch_size or yolo_config.batch_size,
     )
     
-    # Commit to volume
+    # Set W&B env vars
+    os.environ["WANDB_PROJECT"] = "usd-detection"
+    os.environ["WANDB_NAME"] = f"yolo11l-{config.epochs}ep-{modal_config.gpu_type.lower()}"
+    settings.update(wandb=True)
+    
+    print(f"🚀 YOLO11 Training | GPU: {modal_config.gpu_type} | Epochs: {config.epochs}")
+    
+    # Check for checkpoint
+    checkpoint_path = Path(config.project) / config.name / "weights/last.pt"
+    if checkpoint_path.exists():
+        print(f"📦 Resuming from: {checkpoint_path}")
+        model = YOLO(str(checkpoint_path))
+    else:
+        print(f"📦 Loading: {config.model}")
+        model = YOLO(config.model)
+    
+    # Train using config
+    results = model.train(**config.to_train_kwargs())
+    
     checkpoint_volume.commit()
     
-    metrics = {
-        "epochs": epochs,
+    return {
+        "epochs": config.epochs,
         "mAP50": float(results.box.map50) if hasattr(results, 'box') else 0,
         "mAP50-95": float(results.box.map) if hasattr(results, 'box') else 0,
     }
-    
-    print(f"\n✅ Training Complete!")
-    print(f"Metrics: {metrics}")
-    return metrics
 
 
 @app.function(
@@ -139,11 +109,8 @@ def test_yolo11(image_bytes: bytes):
 
 
 @app.local_entrypoint()
-def main(epochs: int = 50):
-    """Train YOLO11 with full W&B metrics."""
-    print(f"🎯 YOLO11 USD Detection Training ({epochs} epochs) on H100")
-    print(f"📊 W&B: All training metrics will be logged")
-    
-    result = train_yolo11.remote(epochs=epochs)
-    print(f"\n✅ Training Complete!")
-    print(f"Results: {result}")
+def main(epochs: int = 50, batch_size: int = 32):
+    """Train YOLO11 with configurable epochs and batch size."""
+    print(f"🎯 YOLO11 USD Detection | {epochs} epochs | batch {batch_size}")
+    result = train_yolo11.remote(epochs=epochs, batch_size=batch_size)
+    print(f"✅ Complete! {result}")
